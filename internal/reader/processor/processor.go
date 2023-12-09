@@ -4,6 +4,7 @@
 package processor
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -208,8 +209,11 @@ func getUrlFromEntry(feed *model.Feed, entry *model.Entry) string {
 		parts := customReplaceRuleRegex.FindStringSubmatch(feed.UrlRewriteRules)
 
 		if len(parts) >= 3 {
-			re := regexp.MustCompile(parts[1])
-			url = re.ReplaceAllString(entry.URL, parts[2])
+			// re := regexp.MustCompile(parts[1])
+			// url = re.ReplaceAllString(entry.URL, parts[2])
+			url = rewriteUrl(entry.URL)
+			// replace the previous entry url. only then the updated entry url will be updated.
+			entry.URL = url
 			slog.Debug("Rewriting entry URL",
 				slog.Int64("entry_id", entry.ID),
 				slog.String("original_entry_url", entry.URL),
@@ -229,6 +233,70 @@ func getUrlFromEntry(feed *model.Feed, entry *model.Entry) string {
 		}
 	}
 	return url
+}
+
+func rewriteUrl(article string) string {
+	//fmt.Println("this is working fine")
+	expression := "(https.*google[.]com.*/)([a-z0-9A-Z_]*)(\\?.*)"
+	// https://news.google.com/rss/articles/CCAiC2lzaU4zUVBSUDY0mAEB?oc=5
+	// https://news.google.com/rss/articles/CBMiU2h0dHBzOi8vd3d3Lndhc2hpbmd0b25wb3N0LmNvbS93b3JsZC8yMDIzLzA0LzIzL2Jha2htdXQtZGVzdHJveWVkLWNpdHktdWtyYWluZS13YXIv0gEA?oc=5
+	//article := "https://news.google.com/rss/articles/CCAiC2lzaU4zUVBSUDY0mAEB?oc=5"
+	//article := "https://news.google.com/rss/articles/CBMiU2h0dHBzOi8vd3d3Lndhc2hpbmd0b25wb3N0LmNvbS93b3JsZC8yMDIzLzA0LzIzL2Jha2htdXQtZGVzdHJveWVkLWNpdHktdWtyYWluZS13YXIv0gEA?oc=5"
+	expr := regexp.MustCompile(expression)
+	match := expr.FindStringSubmatch(article)
+	base64str := ""
+	for i, s := range match {
+		if i != 0 && s != "" {
+			if i == 2 {
+				base64str = s
+			}
+			//fmt.Printf("index %d\n", i)
+			//fmt.Printf("name %s\n", s)
+		}
+	}
+	if base64str != "" {
+		//fmt.Printf("\nbase64 %s", base64str)
+		data, err := base64.StdEncoding.DecodeString(base64str)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+		}
+		//fmt.Printf("%q\n", data)
+		j := 0
+		k := 0
+		for i := 0; i < len(data); i++ {
+			//val := data[i]
+			//fmt.Printf("%d:%d ", i, val)
+			// http 104 116 116 112
+			if j == 0 && 104 == data[i] && string(data[i:i+4]) == "http" {
+				j = i
+				continue
+			} else if i > 1 && j == 0 && 11 == data[i] && 34 == data[i-1] {
+				j = i + 1
+				continue
+			}
+			//  unwanted character 210
+			if j > 0 && data[i] == 210 {
+				k = i
+				break
+			} else if j > 0 && data[i] == 152 {
+				k = i
+				break
+			}
+		}
+		if j > 0 && k > j {
+			//fmt.Printf("\nj-%d k-%d", j, k)
+			baseYoutube := ""
+			if len(data[j:k]) < 15 {
+				baseYoutube = "https://youtube.com/watch?v="
+			}
+			baseYoutube += string(data[j:k])
+			article = baseYoutube
+
+			//fmt.Printf("\nlength %d", len(baseYoutube))
+			//fmt.Printf("\nfinal url %s", baseYoutube)
+		}
+	}
+	return article
 }
 
 func updateEntryReadingTime(store *storage.Storage, feed *model.Feed, entry *model.Entry, entryIsNew bool, user *model.User) {
