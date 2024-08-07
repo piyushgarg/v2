@@ -6,6 +6,9 @@ package model // import "miniflux.app/v2/internal/model"
 // Integration represents user integration settings.
 type Integration struct {
 	UserID                           int64
+	BetulaEnabled                    bool
+	BetulaURL                        string
+	BetulaToken                      string
 	PinboardEnabled                  bool
 	PinboardToken                    string
 	PinboardTags                     string
@@ -48,11 +51,20 @@ type Integration struct {
 	TelegramBotDisableWebPagePreview bool
 	TelegramBotDisableNotification   bool
 	TelegramBotDisableButtons        bool
+	LinkAceEnabled                   bool
+	LinkAceURL                       string
+	LinkAceAPIKey                    string
+	LinkAceTags                      string
+	LinkAcePrivate                   bool
+	LinkAceCheckDisabled             bool
 	LinkdingEnabled                  bool
 	LinkdingURL                      string
 	LinkdingAPIKey                   string
 	LinkdingTags                     string
 	LinkdingMarkAsUnread             bool
+	LinkwardenEnabled                bool
+	LinkwardenURL                    string
+	LinkwardenAPIKey                 string
 	MatrixBotEnabled                 bool
 	MatrixBotUser                    string
 	MatrixBotPassword                string
@@ -61,6 +73,11 @@ type Integration struct {
 	AppriseEnabled                   bool
 	AppriseURL                       string
 	AppriseServicesURL               string
+	ReadeckEnabled                   bool
+	ReadeckURL                       string
+	ReadeckAPIKey                    string
+	ReadeckLabels                    string
+	ReadeckOnlyURL                   bool
 	ShioriEnabled                    bool
 	ShioriURL                        string
 	ShioriUsername                   string
@@ -76,4 +93,15 @@ type Integration struct {
 	OmnivoreEnabled                  bool
 	OmnivoreAPIKey                   string
 	OmnivoreURL                      string
+	RaindropEnabled                  bool
+	RaindropToken                    string
+	RaindropCollectionID             string
+	RaindropTags                     string
+	NtfyEnabled                      bool
+	NtfyTopic                        string
+	NtfyURL                          string
+	NtfyAPIToken                     string
+	NtfyUsername                     string
+	NtfyPassword                     string
+	NtfyIconURL                      string
 }

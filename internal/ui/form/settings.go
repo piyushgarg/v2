@@ -11,6 +11,16 @@ import (
 	"miniflux.app/v2/internal/model"
 )
 
+// MarkReadBehavior list all possible behaviors for automatically marking an entry as read
+type MarkReadBehavior string
+
+var (
+	NoAutoMarkAsRead                           MarkReadBehavior = "no-auto"
+	MarkAsReadOnView                           MarkReadBehavior = "on-view"
+	MarkAsReadOnViewButWaitForPlayerCompletion MarkReadBehavior = "on-view-but-wait-for-player-completion"
+	MarkAsReadOnlyOnPlayerCompletion           MarkReadBehavior = "on-player-completion"
+)
+
 // SettingsForm represents the settings form.
 type SettingsForm struct {
 	Username               string
@@ -33,6 +43,45 @@ type SettingsForm struct {
 	DefaultHomePage        string
 	CategoriesSortingOrder string
 	MarkReadOnView         bool
+	// MarkReadBehavior is a string representation of the MarkReadOnView and MarkReadOnMediaPlayerCompletion fields together
+	MarkReadBehavior      MarkReadBehavior
+	MediaPlaybackRate     float64
+	BlockFilterEntryRules string
+	KeepFilterEntryRules  string
+}
+
+// MarkAsReadBehavior returns the MarkReadBehavior from the given MarkReadOnView and MarkReadOnMediaPlayerCompletion values.
+// Useful to convert the values from the User model to the form
+func MarkAsReadBehavior(markReadOnView, markReadOnMediaPlayerCompletion bool) MarkReadBehavior {
+	switch {
+	case markReadOnView && !markReadOnMediaPlayerCompletion:
+		return MarkAsReadOnView
+	case markReadOnView && markReadOnMediaPlayerCompletion:
+		return MarkAsReadOnViewButWaitForPlayerCompletion
+	case !markReadOnView && markReadOnMediaPlayerCompletion:
+		return MarkAsReadOnlyOnPlayerCompletion
+	case !markReadOnView && !markReadOnMediaPlayerCompletion:
+		fallthrough // Explicit defaulting
+	default:
+		return NoAutoMarkAsRead
+	}
+}
+
+// ExtractMarkAsReadBehavior returns the MarkReadOnView and MarkReadOnMediaPlayerCompletion values from the given MarkReadBehavior.
+// Useful to extract the values from the form to the User model
+func ExtractMarkAsReadBehavior(behavior MarkReadBehavior) (markReadOnView, markReadOnMediaPlayerCompletion bool) {
+	switch behavior {
+	case MarkAsReadOnView:
+		return true, false
+	case MarkAsReadOnViewButWaitForPlayerCompletion:
+		return true, true
+	case MarkAsReadOnlyOnPlayerCompletion:
+		return false, true
+	case NoAutoMarkAsRead:
+		fallthrough // Explicit defaulting
+	default:
+		return false, false
+	}
 }
 
 // Merge updates the fields of the given user.
@@ -54,7 +103,13 @@ func (s *SettingsForm) Merge(user *model.User) *model.User {
 	user.DefaultReadingSpeed = s.DefaultReadingSpeed
 	user.DefaultHomePage = s.DefaultHomePage
 	user.CategoriesSortingOrder = s.CategoriesSortingOrder
-	user.MarkReadOnView = s.MarkReadOnView
+	user.MediaPlaybackRate = s.MediaPlaybackRate
+	user.BlockFilterEntryRules = s.BlockFilterEntryRules
+	user.KeepFilterEntryRules = s.KeepFilterEntryRules
+
+	MarkReadOnView, MarkReadOnMediaPlayerCompletion := ExtractMarkAsReadBehavior(s.MarkReadBehavior)
+	user.MarkReadOnView = MarkReadOnView
+	user.MarkReadOnMediaPlayerCompletion = MarkReadOnMediaPlayerCompletion
 
 	if s.Password != "" {
 		user.Password = s.Password
@@ -84,6 +139,10 @@ func (s *SettingsForm) Validate() *locale.LocalizedError {
 		}
 	}
 
+	if s.MediaPlaybackRate < 0.25 || s.MediaPlaybackRate > 4 {
+		return locale.NewLocalizedError("error.settings_media_playback_rate_range")
+	}
+
 	return nil
 }
 
@@ -100,6 +159,10 @@ func NewSettingsForm(r *http.Request) *SettingsForm {
 	cjkReadingSpeed, err := strconv.ParseInt(r.FormValue("cjk_reading_speed"), 10, 0)
 	if err != nil {
 		cjkReadingSpeed = 0
+	}
+	mediaPlaybackRate, err := strconv.ParseFloat(r.FormValue("media_playback_rate"), 64)
+	if err != nil {
+		mediaPlaybackRate = 1
 	}
 	return &SettingsForm{
 		Username:               r.FormValue("username"),
@@ -122,5 +185,9 @@ func NewSettingsForm(r *http.Request) *SettingsForm {
 		DefaultHomePage:        r.FormValue("default_home_page"),
 		CategoriesSortingOrder: r.FormValue("categories_sorting_order"),
 		MarkReadOnView:         r.FormValue("mark_read_on_view") == "1",
+		MarkReadBehavior:       MarkReadBehavior(r.FormValue("mark_read_behavior")),
+		MediaPlaybackRate:      mediaPlaybackRate,
+		BlockFilterEntryRules:  r.FormValue("block_filter_entry_rules"),
+		KeepFilterEntryRules:   r.FormValue("keep_filter_entry_rules"),
 	}
 }

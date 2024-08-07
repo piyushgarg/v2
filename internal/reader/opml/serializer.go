@@ -38,20 +38,21 @@ func convertSubscriptionsToOPML(subscriptions SubcriptionList) *opmlDocument {
 	opmlDocument.Header.DateCreated = time.Now().Format("Mon, 02 Jan 2006 15:04:05 MST")
 
 	groupedSubs := groupSubscriptionsByFeed(subscriptions)
-	var categories []string
+	categories := make([]string, 0, len(groupedSubs))
 	for k := range groupedSubs {
 		categories = append(categories, k)
 	}
 	sort.Strings(categories)
 
 	for _, categoryName := range categories {
-		category := opmlOutline{Text: categoryName}
+		category := opmlOutline{Text: categoryName, Outlines: make(opmlOutlineCollection, 0, len(groupedSubs[categoryName]))}
 		for _, subscription := range groupedSubs[categoryName] {
 			category.Outlines = append(category.Outlines, opmlOutline{
-				Title:   subscription.Title,
-				Text:    subscription.Title,
-				FeedURL: subscription.FeedURL,
-				SiteURL: subscription.SiteURL,
+				Title:       subscription.Title,
+				Text:        subscription.Title,
+				FeedURL:     subscription.FeedURL,
+				SiteURL:     subscription.SiteURL,
+				Description: subscription.Description,
 			})
 		}
 

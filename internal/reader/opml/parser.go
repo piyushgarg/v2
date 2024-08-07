@@ -34,10 +34,11 @@ func getSubscriptionsFromOutlines(outlines opmlOutlineCollection, category strin
 				Title:        outline.GetTitle(),
 				FeedURL:      outline.FeedURL,
 				SiteURL:      outline.GetSiteURL(),
+				Description:  outline.Description,
 				CategoryName: category,
 			})
 		} else if outline.Outlines.HasChildren() {
-			subscriptions = append(subscriptions, getSubscriptionsFromOutlines(outline.Outlines, outline.Text)...)
+			subscriptions = append(subscriptions, getSubscriptionsFromOutlines(outline.Outlines, outline.GetTitle())...)
 		}
 	}
 	return subscriptions

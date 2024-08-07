@@ -1,33 +1,37 @@
 {{ define "title"}}{{ t "page.edit_feed.title" .feed.Title }}{{ end }}
 
-{{ define "content"}}
-<section class="page-header">
-    <h1 dir="auto">{{ .feed.Title }}</h1>
-    <ul>
-        <li>
-            <a href="{{ route "feeds" }}">{{ icon "feeds" }}{{ t "menu.feeds" }}</a>
-        </li>
-        <li>
-            <a href="{{ route "feedEntries" "feedID" .feed.ID }}">{{ icon "entries" }}{{ t "menu.feed_entries" }}</a>
-        </li>
-        <li>
-            <a href="#"
-                data-confirm="true"
-                data-label-question="{{ t "confirm.question.refresh" }}"
-                data-label-yes="{{ t "confirm.yes" }}"
-                data-label-no="{{ t "confirm.no" }}"
-                data-label-loading="{{ t "confirm.loading" }}"
-                data-url="{{ route "refreshFeed" "feedID" .feed.ID }}?forceRefresh=true"
-                data-no-action-url="{{ route "refreshFeed" "feedID" .feed.ID }}?forceRefresh=false">{{ icon "refresh" }}{{ t "menu.refresh_feed" }}</a>
-        </li>
-    </ul>
+{{ define "page_header"}}
+<section class="page-header" aria-labelledby="page-header-title">
+    <h1 id="page-header-title" dir="auto">{{ .feed.Title }}</h1>
+    <nav aria-label="{{ .feed.Title }} {{ t "menu.title" }}">
+        <ul>
+            <li>
+                <a href="{{ route "feeds" }}">{{ icon "feeds" }}{{ t "menu.feeds" }}</a>
+            </li>
+            <li>
+                <a href="{{ route "feedEntries" "feedID" .feed.ID }}">{{ icon "entries" }}{{ t "menu.feed_entries" }}</a>
+            </li>
+            <li>
+                <a href="#"
+                    data-confirm="true"
+                    data-label-question="{{ t "confirm.question.refresh" }}"
+                    data-label-yes="{{ t "confirm.yes" }}"
+                    data-label-no="{{ t "confirm.no" }}"
+                    data-label-loading="{{ t "confirm.loading" }}"
+                    data-url="{{ route "refreshFeed" "feedID" .feed.ID }}?forceRefresh=true"
+                    data-no-action-url="{{ route "refreshFeed" "feedID" .feed.ID }}?forceRefresh=false">{{ icon "refresh" }}{{ t "menu.refresh_feed" }}</a>
+            </li>
+        </ul>
+    </nav>
 </section>
+{{ end }}
 
+{{ define "content"}}
 {{ if not .categories }}
-    <p class="alert alert-error">{{ t "page.add_feed.no_category" }}</p>
+    <p role="alert" class="alert alert-error">{{ t "page.add_feed.no_category" }}</p>
 {{ else }}
     {{ if ne .feed.ParsingErrorCount 0 }}
-    <div class="alert alert-error">
+    <div role="alert" class="alert alert-error">
         <h3>{{ t "page.edit_feed.last_parsing_error" }}</h3>
         <p>{{ t .feed.ParsingErrorMsg }}</p>
     </div>
@@ -37,7 +41,7 @@
         <input type="hidden" name="csrf" value="{{ .csrf }}">
 
         {{ if .errorMessage }}
-            <div class="alert alert-error">{{ .errorMessage }}</div>
+            <div role="alert" class="alert alert-error">{{ .errorMessage }}</div>
         {{ end }}
 
         <fieldset>
@@ -58,6 +62,9 @@
 
             <label for="form-feed-url">{{ t "form.feed.label.feed_url" }}</label>
             <input type="url" name="feed_url" id="form-feed-url" placeholder="https://domain.tld/" value="{{ .form.FeedURL }}" spellcheck="false" required>
+
+            <label for="form-description">{{ t "form.feed.label.description" }}</label>
+            <textarea name="description" id="form-description" cols="40" rows="10" >{{ .form.Description }}</textarea>
 
             {{ if not .form.CategoryHidden }}
             <label><input type="checkbox" name="hide_globally" value="1"{{ if .form.HideGlobally }} checked{{ end }}> {{ t "form.feed.label.hide_globally" }}</label>
@@ -96,6 +103,7 @@
             <label><input type="checkbox" name="crawler" value="1" {{ if .form.Crawler }}checked{{ end }}> {{ t "form.feed.label.crawler" }}</label>
             <label><input type="checkbox" name="ignore_http_cache" value="1" {{ if .form.IgnoreHTTPCache }}checked{{ end }}> {{ t "form.feed.label.ignore_http_cache" }}</label>
             <label><input type="checkbox" name="allow_self_signed_certificates" value="1" {{ if .form.AllowSelfSignedCertificates }}checked{{ end }}> {{ t "form.feed.label.allow_self_signed_certificates" }}</label>
+            <label><input type="checkbox" name="disable_http2" value="1" {{ if .form.DisableHTTP2 }}checked{{ end }}> {{ t "form.feed.label.disable_http2" }}</label>
             {{ if .hasProxyConfigured }}
             <label><input type="checkbox" name="fetch_via_proxy" value="1" {{ if .form.FetchViaProxy }}checked{{ end }}> {{ t "form.feed.label.fetch_via_proxy" }}</label>
             {{ end }}
@@ -134,7 +142,7 @@
                     {{ t "form.feed.label.blocklist_rules" }}
                 </label>
                 &nbsp;
-                <a href=" https://miniflux.app/docs/rules.html#filtering-rules" target="_blank">
+                <a href="https://miniflux.app/docs/rules.html#feed-filtering-rules" target="_blank">
                     {{ icon "external-link" }}
                 </a>
             </div>
@@ -145,7 +153,7 @@
                     {{ t "form.feed.label.keeplist_rules" }}
                 </label>
                 &nbsp;
-                <a href=" https://miniflux.app/docs/rules.html#filtering-rules" target="_blank">
+                <a href="https://miniflux.app/docs/rules.html#feed-filtering-rules" target="_blank">
                     {{ icon "external-link" }}
                 </a>
             </div>
@@ -156,7 +164,7 @@
                     {{ t "form.feed.label.urlrewrite_rules" }}
                 </label>
                 &nbsp;
-                <a href=" https://miniflux.app/docs/rules.html#rewriteurl-rules" target="_blank">
+                <a href="https://miniflux.app/docs/rules.html#rewriteurl-rules" target="_blank">
                     {{ icon "external-link" }}
                 </a>
             </div>
@@ -170,13 +178,36 @@
         <fieldset>
             <legend>{{ t "form.feed.fieldset.integration" }}</legend>
 
-            <div class="form-label-row">
-                <label for="form-apprise-service-urls">
-                    {{ t "form.feed.label.apprise_service_urls" }}
-                </label>
-                &nbsp;
-            </div>
-            <input type="text" name="apprise_service_urls" id="form-apprise-service-urls" value="{{ .form.AppriseServiceURLs }}" spellcheck="false">
+            <details>
+                <summary>Apprise</summary>
+                <div class="form-label-row">
+                    <label for="form-apprise-service-urls">
+                        {{ t "form.feed.label.apprise_service_urls" }}
+                    </label>
+                </div>
+                <input type="text" name="apprise_service_urls" id="form-apprise-service-urls" value="{{ .form.AppriseServiceURLs }}" spellcheck="false">
+            </details>
+
+            <details>
+                <summary>Ntfy</summary>
+                <label><input type="checkbox" name="ntfy_enabled" value="1" {{ if .form.NtfyEnabled }}checked{{ end }}> {{ t "form.feed.label.ntfy_activate" }}</label>
+                <div class="form-label-row">
+                    <label for="form-ntfy-priority">
+                        {{ t "form.feed.label.ntfy_priority" }}
+                    </label>
+                    &nbsp;
+                    <a href="https://docs.ntfy.sh/publish/#message-priority" target="_blank">
+                        {{ icon "external-link" }}
+                    </a>
+                </div>
+                <select id="form-ntfy-priority" name="ntfy_priority">
+                    <option value="5" {{ if eq .form.NtfyPriority 5 }}selected{{ end }}>5 - {{ t "form.feed.label.ntfy_max_priority" }}</option>
+                    <option value="4" {{ if eq .form.NtfyPriority 4 }}selected{{ end }}>4 - {{ t "form.feed.label.ntfy_high_priority" }}</option>
+                    <option value="3" {{ if eq .form.NtfyPriority 3 }}selected{{ end }}>3 - {{ t "form.feed.label.ntfy_default_priority" }}</option>
+                    <option value="2" {{ if eq .form.NtfyPriority 2 }}selected{{ end }}>2 - {{ t "form.feed.label.ntfy_low_priority" }}</option>
+                    <option value="1" {{ if eq .form.NtfyPriority 1 }}selected{{ end }}>1 - {{ t "form.feed.label.ntfy_min_priority" }}</option>
+                </select>
+            </details>
 
             <div class="buttons">
                 <button type="submit" class="button button-primary" data-label-loading="{{ t "form.submit.saving" }}">{{ t "action.update" }}</button>
@@ -196,7 +227,7 @@
         </ul>
     </div>
 
-    <div class="alert alert-error">
+    <div role="alert" class="alert alert-error">
         <a href="#"
             data-confirm="true"
             data-action="remove-feed"

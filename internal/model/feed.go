@@ -28,6 +28,7 @@ type Feed struct {
 	FeedURL                     string    `json:"feed_url"`
 	SiteURL                     string    `json:"site_url"`
 	Title                       string    `json:"title"`
+	Description                 string    `json:"description"`
 	CheckedAt                   time.Time `json:"checked_at"`
 	NextCheckAt                 time.Time `json:"next_check_at"`
 	EtagHeader                  string    `json:"etag_header"`
@@ -50,7 +51,10 @@ type Feed struct {
 	AllowSelfSignedCertificates bool      `json:"allow_self_signed_certificates"`
 	FetchViaProxy               bool      `json:"fetch_via_proxy"`
 	HideGlobally                bool      `json:"hide_globally"`
+	DisableHTTP2                bool      `json:"disable_http2"`
 	AppriseServiceURLs          string    `json:"apprise_service_urls"`
+	NtfyEnabled                 bool      `json:"ntfy_enabled"`
+	NtfyPriority                int       `json:"ntfy_priority"`
 
 	// Non persisted attributes
 	Category *Category `json:"category,omitempty"`
@@ -150,6 +154,7 @@ type FeedCreationRequest struct {
 	KeeplistRules               string `json:"keeplist_rules"`
 	HideGlobally                bool   `json:"hide_globally"`
 	UrlRewriteRules             string `json:"urlrewrite_rules"`
+	DisableHTTP2                bool   `json:"disable_http2"`
 }
 
 type FeedCreationRequestFromSubscriptionDiscovery struct {
@@ -157,24 +162,7 @@ type FeedCreationRequestFromSubscriptionDiscovery struct {
 	ETag         string
 	LastModified string
 
-	FeedURL                     string `json:"feed_url"`
-	CategoryID                  int64  `json:"category_id"`
-	UserAgent                   string `json:"user_agent"`
-	Cookie                      string `json:"cookie"`
-	Username                    string `json:"username"`
-	Password                    string `json:"password"`
-	Crawler                     bool   `json:"crawler"`
-	Disabled                    bool   `json:"disabled"`
-	NoMediaPlayer               bool   `json:"no_media_player"`
-	IgnoreHTTPCache             bool   `json:"ignore_http_cache"`
-	AllowSelfSignedCertificates bool   `json:"allow_self_signed_certificates"`
-	FetchViaProxy               bool   `json:"fetch_via_proxy"`
-	ScraperRules                string `json:"scraper_rules"`
-	RewriteRules                string `json:"rewrite_rules"`
-	BlocklistRules              string `json:"blocklist_rules"`
-	KeeplistRules               string `json:"keeplist_rules"`
-	HideGlobally                bool   `json:"hide_globally"`
-	UrlRewriteRules             string `json:"urlrewrite_rules"`
+	FeedCreationRequest
 }
 
 // FeedModificationRequest represents the request to update a feed.
@@ -182,6 +170,7 @@ type FeedModificationRequest struct {
 	FeedURL                     *string `json:"feed_url"`
 	SiteURL                     *string `json:"site_url"`
 	Title                       *string `json:"title"`
+	Description                 *string `json:"description"`
 	ScraperRules                *string `json:"scraper_rules"`
 	RewriteRules                *string `json:"rewrite_rules"`
 	BlocklistRules              *string `json:"blocklist_rules"`
@@ -199,6 +188,7 @@ type FeedModificationRequest struct {
 	AllowSelfSignedCertificates *bool   `json:"allow_self_signed_certificates"`
 	FetchViaProxy               *bool   `json:"fetch_via_proxy"`
 	HideGlobally                *bool   `json:"hide_globally"`
+	DisableHTTP2                *bool   `json:"disable_http2"`
 }
 
 // Patch updates a feed with modified values.
@@ -213,6 +203,10 @@ func (f *FeedModificationRequest) Patch(feed *Feed) {
 
 	if f.Title != nil && *f.Title != "" {
 		feed.Title = *f.Title
+	}
+
+	if f.Description != nil && *f.Description != "" {
+		feed.Description = *f.Description
 	}
 
 	if f.ScraperRules != nil {
@@ -281,6 +275,10 @@ func (f *FeedModificationRequest) Patch(feed *Feed) {
 
 	if f.HideGlobally != nil {
 		feed.HideGlobally = *f.HideGlobally
+	}
+
+	if f.DisableHTTP2 != nil {
+		feed.DisableHTTP2 = *f.DisableHTTP2
 	}
 }
 

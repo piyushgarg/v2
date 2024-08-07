@@ -160,7 +160,7 @@ func (e *EntryQueryBuilder) WithStatuses(statuses []string) *EntryQueryBuilder {
 func (e *EntryQueryBuilder) WithTags(tags []string) *EntryQueryBuilder {
 	if len(tags) > 0 {
 		for _, cat := range tags {
-			e.conditions = append(e.conditions, fmt.Sprintf("$%d = ANY(e.tags)", len(e.args)+1))
+			e.conditions = append(e.conditions, fmt.Sprintf("LOWER($%d) = ANY(LOWER(e.tags::text)::text[])", len(e.args)+1))
 			e.args = append(e.args, cat)
 		}
 	}
@@ -281,6 +281,7 @@ func (e *EntryQueryBuilder) GetEntries() (model.Entries, error) {
 			f.title as feed_title,
 			f.feed_url,
 			f.site_url,
+			f.description,
 			f.checked_at,
 			f.category_id,
 			c.title as category_title,
@@ -347,6 +348,7 @@ func (e *EntryQueryBuilder) GetEntries() (model.Entries, error) {
 			&entry.Feed.Title,
 			&entry.Feed.FeedURL,
 			&entry.Feed.SiteURL,
+			&entry.Feed.Description,
 			&entry.Feed.CheckedAt,
 			&entry.Feed.Category.ID,
 			&entry.Feed.Category.Title,
@@ -397,7 +399,18 @@ func (e *EntryQueryBuilder) GetEntries() (model.Entries, error) {
 
 // GetEntryIDs returns a list of entry IDs that match the condition.
 func (e *EntryQueryBuilder) GetEntryIDs() ([]int64, error) {
-	query := `SELECT e.id FROM entries e LEFT JOIN feeds f ON f.id=e.feed_id WHERE %s %s`
+	query := `
+		SELECT
+			e.id
+		FROM 
+			entries e
+		LEFT JOIN
+			feeds f
+		ON
+			f.id=e.feed_id 
+		WHERE 
+			%s %s
+	`
 
 	condition := e.buildCondition()
 	query = fmt.Sprintf(query, condition, e.buildSorting())
@@ -428,21 +441,21 @@ func (e *EntryQueryBuilder) buildCondition() string {
 }
 
 func (e *EntryQueryBuilder) buildSorting() string {
-	var parts []string
+	var parts string
 
 	if len(e.sortExpressions) > 0 {
-		parts = append(parts, fmt.Sprintf(`ORDER BY %s`, strings.Join(e.sortExpressions, ", ")))
+		parts += fmt.Sprintf(" ORDER BY %s", strings.Join(e.sortExpressions, ", "))
 	}
 
 	if e.limit > 0 {
-		parts = append(parts, fmt.Sprintf(`LIMIT %d`, e.limit))
+		parts += fmt.Sprintf(" LIMIT %d", e.limit)
 	}
 
 	if e.offset > 0 {
-		parts = append(parts, fmt.Sprintf(`OFFSET %d`, e.offset))
+		parts += fmt.Sprintf(" OFFSET %d", e.offset)
 	}
 
-	return strings.Join(parts, " ")
+	return parts
 }
 
 // NewEntryQueryBuilder returns a new EntryQueryBuilder.

@@ -16,6 +16,25 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
+func BenchmarkSanitize(b *testing.B) {
+	var testCases = map[string][]string{
+		"miniflux_github.html":    {"https://github.com/miniflux/v2", ""},
+		"miniflux_wikipedia.html": {"https://fr.wikipedia.org/wiki/Miniflux", ""},
+	}
+	for filename := range testCases {
+		data, err := os.ReadFile("testdata/" + filename)
+		if err != nil {
+			b.Fatalf(`Unable to read file %q: %v`, filename, err)
+		}
+		testCases[filename][1] = string(data)
+	}
+	for range b.N {
+		for _, v := range testCases {
+			Sanitize(v[0], v[1])
+		}
+	}
+}
+
 func TestValidInput(t *testing.T) {
 	input := `<p>This is a <strong>text</strong> with an image: <img src="http://example.org/" alt="Test" loading="lazy">.</p>`
 	output := Sanitize("http://example.org/", input)
@@ -205,7 +224,7 @@ func TestInvalidIFrame(t *testing.T) {
 
 func TestIFrameWithChildElements(t *testing.T) {
 	input := `<iframe src="https://www.youtube.com/"><p>test</p></iframe>`
-	expected := `<iframe src="https://www.youtube.com/" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>`
+	expected := `<iframe src="https://www.youtube.com/" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy"></iframe>`
 	output := Sanitize("http://example.com/", input)
 
 	if expected != output {
@@ -471,6 +490,26 @@ func TestBlacklistedLink(t *testing.T) {
 	}
 }
 
+func TestLinkWithTrackers(t *testing.T) {
+	input := `<p>This link has trackers <a href="https://example.com/page?utm_source=newsletter">Test</a></p>`
+	expected := `<p>This link has trackers <a href="https://example.com/page" rel="noopener noreferrer" target="_blank" referrerpolicy="no-referrer">Test</a></p>`
+	output := Sanitize("http://example.org/", input)
+
+	if expected != output {
+		t.Errorf(`Wrong output: "%s" != "%s"`, expected, output)
+	}
+}
+
+func TestImageSrcWithTrackers(t *testing.T) {
+	input := `<p>This image has trackers <img src="https://example.org/?id=123&utm_source=newsletter&utm_medium=email&fbclid=abc123"></p>`
+	expected := `<p>This image has trackers <img src="https://example.org/?id=123" loading="lazy"></p>`
+	output := Sanitize("http://example.org/", input)
+
+	if expected != output {
+		t.Errorf(`Wrong output: "%s" != "%s"`, expected, output)
+	}
+}
+
 func TestPixelTracker(t *testing.T) {
 	input := `<p><img src="https://tracker1.example.org/" height="1" width="1"> and <img src="https://tracker2.example.org/" height="1" width="1"/></p>`
 	expected := `<p> and </p>`
@@ -503,7 +542,7 @@ func TestEspaceAttributes(t *testing.T) {
 
 func TestReplaceYoutubeURL(t *testing.T) {
 	input := `<iframe src="http://www.youtube.com/embed/test123?version=3&#038;rel=1&#038;fs=1&#038;autohide=2&#038;showsearch=0&#038;showinfo=1&#038;iv_load_policy=1&#038;wmode=transparent"></iframe>`
-	expected := `<iframe src="https://www.youtube-nocookie.com/embed/test123?version=3&amp;rel=1&amp;fs=1&amp;autohide=2&amp;showsearch=0&amp;showinfo=1&amp;iv_load_policy=1&amp;wmode=transparent" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>`
+	expected := `<iframe src="https://www.youtube-nocookie.com/embed/test123?version=3&amp;rel=1&amp;fs=1&amp;autohide=2&amp;showsearch=0&amp;showinfo=1&amp;iv_load_policy=1&amp;wmode=transparent" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy"></iframe>`
 	output := Sanitize("http://example.org/", input)
 
 	if expected != output {
@@ -513,7 +552,7 @@ func TestReplaceYoutubeURL(t *testing.T) {
 
 func TestReplaceSecureYoutubeURL(t *testing.T) {
 	input := `<iframe src="https://www.youtube.com/embed/test123"></iframe>`
-	expected := `<iframe src="https://www.youtube-nocookie.com/embed/test123" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>`
+	expected := `<iframe src="https://www.youtube-nocookie.com/embed/test123" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy"></iframe>`
 	output := Sanitize("http://example.org/", input)
 
 	if expected != output {
@@ -523,7 +562,7 @@ func TestReplaceSecureYoutubeURL(t *testing.T) {
 
 func TestReplaceSecureYoutubeURLWithParameters(t *testing.T) {
 	input := `<iframe src="https://www.youtube.com/embed/test123?rel=0&amp;controls=0"></iframe>`
-	expected := `<iframe src="https://www.youtube-nocookie.com/embed/test123?rel=0&amp;controls=0" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>`
+	expected := `<iframe src="https://www.youtube-nocookie.com/embed/test123?rel=0&amp;controls=0" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy"></iframe>`
 	output := Sanitize("http://example.org/", input)
 
 	if expected != output {
@@ -533,7 +572,7 @@ func TestReplaceSecureYoutubeURLWithParameters(t *testing.T) {
 
 func TestReplaceYoutubeURLAlreadyReplaced(t *testing.T) {
 	input := `<iframe src="https://www.youtube-nocookie.com/embed/test123?rel=0&amp;controls=0" sandbox="allow-scripts allow-same-origin"></iframe>`
-	expected := `<iframe src="https://www.youtube-nocookie.com/embed/test123?rel=0&amp;controls=0" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>`
+	expected := `<iframe src="https://www.youtube-nocookie.com/embed/test123?rel=0&amp;controls=0" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy"></iframe>`
 	output := Sanitize("http://example.org/", input)
 
 	if expected != output {
@@ -543,7 +582,7 @@ func TestReplaceYoutubeURLAlreadyReplaced(t *testing.T) {
 
 func TestReplaceProtocolRelativeYoutubeURL(t *testing.T) {
 	input := `<iframe src="//www.youtube.com/embed/Bf2W84jrGqs" width="560" height="314" allowfullscreen="allowfullscreen"></iframe>`
-	expected := `<iframe src="https://www.youtube-nocookie.com/embed/Bf2W84jrGqs" width="560" height="314" allowfullscreen="allowfullscreen" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>`
+	expected := `<iframe src="https://www.youtube-nocookie.com/embed/Bf2W84jrGqs" width="560" height="314" allowfullscreen="allowfullscreen" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy"></iframe>`
 	output := Sanitize("http://example.org/", input)
 
 	if expected != output {
@@ -564,7 +603,7 @@ func TestReplaceYoutubeURLWithCustomURL(t *testing.T) {
 	}
 
 	input := `<iframe src="https://www.youtube.com/embed/test123?version=3&#038;rel=1&#038;fs=1&#038;autohide=2&#038;showsearch=0&#038;showinfo=1&#038;iv_load_policy=1&#038;wmode=transparent"></iframe>`
-	expected := `<iframe src="https://invidious.custom/embed/test123?version=3&amp;rel=1&amp;fs=1&amp;autohide=2&amp;showsearch=0&amp;showinfo=1&amp;iv_load_policy=1&amp;wmode=transparent" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>`
+	expected := `<iframe src="https://invidious.custom/embed/test123?version=3&amp;rel=1&amp;fs=1&amp;autohide=2&amp;showsearch=0&amp;showinfo=1&amp;iv_load_policy=1&amp;wmode=transparent" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy"></iframe>`
 	output := Sanitize("http://example.org/", input)
 
 	if expected != output {
@@ -574,7 +613,7 @@ func TestReplaceYoutubeURLWithCustomURL(t *testing.T) {
 
 func TestReplaceIframeURL(t *testing.T) {
 	input := `<iframe src="https://player.vimeo.com/video/123456?title=0&amp;byline=0"></iframe>`
-	expected := `<iframe src="https://player.vimeo.com/video/123456?title=0&amp;byline=0" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe>`
+	expected := `<iframe src="https://player.vimeo.com/video/123456?title=0&amp;byline=0" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy"></iframe>`
 	output := Sanitize("http://example.org/", input)
 
 	if expected != output {
@@ -604,6 +643,16 @@ func TestReplaceScript(t *testing.T) {
 
 func TestReplaceStyle(t *testing.T) {
 	input := `<p>Before paragraph.</p><style>body { background-color: #ff0000; }</style><p>After paragraph.</p>`
+	expected := `<p>Before paragraph.</p><p>After paragraph.</p>`
+	output := Sanitize("http://example.org/", input)
+
+	if expected != output {
+		t.Errorf(`Wrong output: "%s" != "%s"`, expected, output)
+	}
+}
+
+func TestHiddenParagraph(t *testing.T) {
+	input := `<p>Before paragraph.</p><p hidden>This should <em>not</em> appear in the <strong>output</strong></p><p>After paragraph.</p>`
 	expected := `<p>Before paragraph.</p><p>After paragraph.</p>`
 	output := Sanitize("http://example.org/", input)
 
