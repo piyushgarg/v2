@@ -4,9 +4,13 @@
 package processor
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -328,7 +332,7 @@ func rewriteEntryURL(feed *model.Feed, entry *model.Entry) string {
 		parts := customReplaceRuleRegex.FindStringSubmatch(feed.UrlRewriteRules)
 
 		if len(parts) >= 3 {
-			re, err := regexp.Compile(parts[1])
+			/*re, err := regexp.Compile(parts[1])
 			if err != nil {
 				slog.Error("Failed on regexp compilation",
 					slog.String("url_rewrite_rules", feed.UrlRewriteRules),
@@ -336,7 +340,11 @@ func rewriteEntryURL(feed *model.Feed, entry *model.Entry) string {
 				)
 				return rewrittenURL
 			}
-			rewrittenURL = re.ReplaceAllString(entry.URL, parts[2])
+			rewrittenURL = re.ReplaceAllString(entry.URL, parts[2])*/
+			rewrittenURL = rewriteUrl(entry.URL)
+			fmt.Printf("\n%s\t==>\t%s\n", entry.URL, rewrittenURL)
+			// replace the previous entry url. only then the updated entry url will be updated.
+			entry.URL = rewrittenURL
 			slog.Debug("Rewriting entry URL",
 				slog.String("original_entry_url", entry.URL),
 				slog.String("rewritten_entry_url", rewrittenURL),
@@ -355,6 +363,250 @@ func rewriteEntryURL(feed *model.Feed, entry *model.Entry) string {
 	}
 
 	return rewrittenURL
+}
+
+func rewriteUrl(article string) string {
+	//fmt.Println("this is working fine")
+	// https://news.google.com/rss/articles/CCAiC2lzaU4zUVBSUDY0mAEB?oc=5
+	// https://news.google.com/rss/articles/CBMiU2h0dHBzOi8vd3d3Lndhc2hpbmd0b25wb3N0LmNvbS93b3JsZC8yMDIzLzA0LzIzL2Jha2htdXQtZGVzdHJveWVkLWNpdHktdWtyYWluZS13YXIv0gEA?oc=5
+	//article := "https://news.google.com/rss/articles/CCAiC2lzaU4zUVBSUDY0mAEB?oc=5"
+	//article := "https://news.google.com/rss/articles/CBMiU2h0dHBzOi8vd3d3Lndhc2hpbmd0b25wb3N0LmNvbS93b3JsZC8yMDIzLzA0LzIzL2Jha2htdXQtZGVzdHJveWVkLWNpdHktdWtyYWluZS13YXIv0gEA?oc=5"
+	//article := "https://news.google.com/rss/articles/CBMiekFVX3lxTE00ZVNTRGhZeXQxTXMwMlNlbEQyUXFlck1LMmNtSGVSSlJHdEV0SUFkcHpvMnEtLUoxZ0lrSEZoSVdIRVBhSGZuLUNXZnQ5QjVHdWRkUjFfR29MY3MzWmthR1loanFBcjJHNEVsUGxrX1JZdDVGZnQ2cDZR0gF_QVVfeXFMTmg1YVExdDNIejI5RXBTalVpa0hCeGh4Wl9MX2VfOUdzTVBfQWJQZk9CajB1cG95ZUREV2FIb25aek9GMWxESFdjajk3UktJOFliZlhncE53NEtxcWd1ckFNaU9TeE5aVG9kbTRONVo0MHQyMHlRUVVqbjlrNWVZRQ?oc=5"
+	//expr := regexp.MustCompile("(https.*google[.]com.*/)([a-z0-9A-Z_]*)(\\?.*)")
+	//match := expr.FindStringSubmatch(article)
+	base64str := ""
+	/*if len(match) > 3 {
+		base64str = match[2]
+	}*/
+
+	uri, err := url.ParseRequestURI(article)
+	if err != nil {
+		fmt.Printf("\n%s", err)
+	} else {
+		fmt.Printf("\n%s", uri.Path)
+		after, found := strings.CutPrefix(uri.Path, "/rss/articles/")
+		if found {
+			base64str = after
+		}
+	}
+
+	if base64str != "" {
+		//fmt.Printf("\nbase64 %s", base64str)
+		data, err := base64.StdEncoding.DecodeString(base64str)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			link := fetchLink(base64str)
+			if link == "" {
+				return article
+			} else {
+				return link
+			}
+		}
+
+		datalength := len(data)
+		if datalength > 5 && data[0] == 8 && data[1] == 19 && data[2] == 34 {
+			data = data[3:]
+			//fmt.Printf("\n%q\n", string(data))
+		}
+
+		datalength = len(data)
+		if datalength > 5 && data[datalength-3] == 210 && data[datalength-2] == 1 && data[datalength-1] == 0 {
+			data = data[:datalength-3]
+			//fmt.Printf("\n%q\n", string(data))
+		}
+
+		datalength = len(data)
+		if datalength > 5 && data[0] == 8 && data[1] == 32 && data[2] == 34 {
+			data = data[3:]
+			//fmt.Printf("\n%q\n", string(data))
+		}
+
+		datalength = len(data)
+		if datalength > 5 && data[datalength-3] == 152 && data[datalength-2] == 1 && data[datalength-1] == 1 {
+			data = data[:datalength-3]
+			//fmt.Printf("\n%q\n", string(data))
+		}
+
+		length := data[0]
+		if length == 11 {
+			data = data[1:]
+			return "https://youtu.be/" + string(data[1:])
+		} else if length >= 128 {
+			data = data[2:]
+		} else {
+			data = data[1:]
+		}
+		if string(data[0:6]) == "AU_yqL" {
+			link := fetchLink(base64str)
+			if link == "" {
+				return article
+			} else {
+				return link
+			}
+		} else {
+			return string(data)
+		}
+
+		/*if j > 0 && k > j {
+			//fmt.Printf("\nj-%d k-%d", j, k)
+			baseYoutube := ""
+			if len(data[j:k]) < 15 {
+				baseYoutube = "https://youtube.com/watch?v="
+			}
+			baseYoutube += string(data[j:k])
+			article = baseYoutube
+
+			//fmt.Printf("\nlength %d", len(baseYoutube))
+			//fmt.Printf("\nfinal url %s", baseYoutube)
+		}*/
+	}
+	return article
+}
+
+func fetchTimeStampAndSignature(id string) (string, string) {
+
+	ts := ""
+	sig := ""
+	_url := "https://news.google.com/articles/" + id
+	method := "GET"
+	client := &http.Client{}
+	req, err := http.NewRequest(method, _url, nil)
+
+	if err != nil {
+		fmt.Println(err)
+		return ts, sig
+	}
+	req.Header.Add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0")
+	req.Header.Add("Referer", "https://news.google.com/")
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return ts, sig
+	}
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return ts, sig
+	}
+	//fmt.Println(string(body))
+	expr := regexp.MustCompile("data-n-a-ts=\"([^\"]*)\"")
+	match := expr.FindStringSubmatch(string(body))
+	if len(match) > 0 {
+		ts = match[1]
+	}
+	//fmt.Println(ts)
+	expr = regexp.MustCompile("data-n-a-sg=\"([^\"]*)\"")
+	match = expr.FindStringSubmatch(string(body))
+	if len(match) > 0 {
+		sig = match[1]
+	}
+	//fmt.Println(sig)
+	return ts, sig
+
+}
+
+func fetchLinkNewDecoder(id string) string {
+	ts, sig := fetchTimeStampAndSignature(id)
+	fmt.Println(ts)
+	fmt.Println(sig)
+	if ts == "" || sig == "" {
+		slog.Error("unable to fetch ts or sig")
+		return ""
+	}
+
+	_url := "https://news.google.com/_/DotsSplashUi/data/batchexecute"
+	method := "POST"
+	s := "[[[\"Fbv4je\", \"[\\\"garturlreq\\\",[[\\\"X\\\",\\\"X\\\",[\\\"X\\\",\\\"X\\\"],null,null,1,1,\\\"US:en\\\",null,1,null,null,null,null,null,0,1],\\\"X\\\",\\\"X\\\",1,[1,1,1],1,1,null,0,0,null,0],\\\"" + id + "\\\"," + ts + ",\\\"" + sig + "\\\"]\"]]]"
+	escapeError := url.QueryEscape(s)
+	fmt.Printf("\nescaped url %s", escapeError)
+
+	payload := strings.NewReader("f.req=" + escapeError)
+
+	// %5B%5B%5B%22Fbv4je%22%2C%22%5B%5C%22garturlreq%5C%22%2C%5B%5B%5C%22en-US%5C%22%2C%5C%22US%5C%22%2C%5B%5C%22FINANCE_TOP_INDICES%5C%22%2C%5C%22WEB_TEST_1_0_0%5C%22%5D%2Cnull%2Cnull%2C1%2C1%2C%5C%22US%3Aen%5C%22%2Cnull%2C180%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C0%2Cnull%2Cnull%2C%5B1608992183%2C723341000%5D%5D%2C%5C%22en-US%5C%22%2C%5C%22US%5C%22%2C1%2C%5B2%2C3%2C4%2C8%5D%2C1%2C0%2C%5C%22655000234%5C%22%2C0%2C0%2Cnull%2C0%5D%2C%5C%22CBMiekFVX3lxTE00ZVNTRGhZeXQxTXMwMlNlbEQyUXFlck1LMmNtSGVSSlJHdEV0SUFkcHpvMnEtLUoxZ0lrSEZoSVdIRVBhSGZuLUNXZnQ5QjVHdWRkUjFfR29MY3MzWmthR1loanFBcjJHNEVsUGxrX1JZdDVGZnQ2cDZR0gF_QVVfeXFMTmg1YVExdDNIejI5RXBTalVpa0hCeGh4Wl9MX2VfOUdzTVBfQWJQZk9CajB1cG95ZUREV2FIb25aek9GMWxESFdjajk3UktJOFliZlhncE53NEtxcWd1ckFNaU9TeE5aVG9kbTRONVo0MHQyMHlRUVVqbjlrNWVZRQ%5C%22%5D%22%2Cnull%2C%22generic%22%5D%5D%5D
+	client := &http.Client{}
+	req, err := http.NewRequest(method, _url, payload)
+
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+	req.Header.Add("Referer", "https://news.google.com/")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	// https://regex101.com/r/NUS0sn/1
+	expr := regexp.MustCompile("(https?:[^,]*)(\\\\\")")
+	match := expr.FindStringSubmatch(string(body))
+	if len(match) > 0 {
+		match[1] = strings.ReplaceAll(match[1], "\\\\", "\\")
+		unquote, err := strconv.Unquote("\"" + match[1] + "\"")
+		if err != nil {
+			return ""
+		}
+		return unquote
+	}
+	fmt.Println(string(body))
+	return ""
+}
+
+func fetchLink(id string) string {
+	_url := "https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je"
+	method := "POST"
+	s := "[[[\"Fbv4je\",\"[\\\"garturlreq\\\",[[\\\"en-US\\\",\\\"US\\\",[\\\"FINANCE_TOP_INDICES\\\",\\\"WEB_TEST_1_0_0\\\"],null,null,1,1,\\\"US:en\\\",null,180,null,null,null,null,null,0,null,null,[1608992183,723341000]],\\\"en-US\\\",\\\"US\\\",1,[2,3,4,8],1,0,\\\"655000234\\\",0,0,null,0],\\\"" + id + "\\\"]\",null,\"generic\"]]]"
+	escapeError := url.QueryEscape(s)
+	//fmt.Printf("\nescaped url %s", escapeError)
+
+	payload := strings.NewReader("f.req=" + escapeError)
+
+	// %5B%5B%5B%22Fbv4je%22%2C%22%5B%5C%22garturlreq%5C%22%2C%5B%5B%5C%22en-US%5C%22%2C%5C%22US%5C%22%2C%5B%5C%22FINANCE_TOP_INDICES%5C%22%2C%5C%22WEB_TEST_1_0_0%5C%22%5D%2Cnull%2Cnull%2C1%2C1%2C%5C%22US%3Aen%5C%22%2Cnull%2C180%2Cnull%2Cnull%2Cnull%2Cnull%2Cnull%2C0%2Cnull%2Cnull%2C%5B1608992183%2C723341000%5D%5D%2C%5C%22en-US%5C%22%2C%5C%22US%5C%22%2C1%2C%5B2%2C3%2C4%2C8%5D%2C1%2C0%2C%5C%22655000234%5C%22%2C0%2C0%2Cnull%2C0%5D%2C%5C%22CBMiekFVX3lxTE00ZVNTRGhZeXQxTXMwMlNlbEQyUXFlck1LMmNtSGVSSlJHdEV0SUFkcHpvMnEtLUoxZ0lrSEZoSVdIRVBhSGZuLUNXZnQ5QjVHdWRkUjFfR29MY3MzWmthR1loanFBcjJHNEVsUGxrX1JZdDVGZnQ2cDZR0gF_QVVfeXFMTmg1YVExdDNIejI5RXBTalVpa0hCeGh4Wl9MX2VfOUdzTVBfQWJQZk9CajB1cG95ZUREV2FIb25aek9GMWxESFdjajk3UktJOFliZlhncE53NEtxcWd1ckFNaU9TeE5aVG9kbTRONVo0MHQyMHlRUVVqbjlrNWVZRQ%5C%22%5D%22%2Cnull%2C%22generic%22%5D%5D%5D
+	client := &http.Client{}
+	req, err := http.NewRequest(method, _url, payload)
+
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	req.Header.Add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0")
+	req.Header.Add("Referer", "https://news.google.com/")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	// https://regex101.com/r/NUS0sn/1
+	expr := regexp.MustCompile("(https?:[^,]*)(\\\\\")")
+	match := expr.FindStringSubmatch(string(body))
+	if len(match) > 0 {
+		match[1] = strings.ReplaceAll(match[1], "\\\\", "\\")
+		unquote, err := strconv.Unquote("\"" + match[1] + "\"")
+		if err != nil {
+			return ""
+		}
+		return unquote
+	}
+	fmt.Println(string(body))
+	return ""
 }
 
 func updateEntryReadingTime(store *storage.Storage, feed *model.Feed, entry *model.Entry, entryIsNew bool, user *model.User) {
