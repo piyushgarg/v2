@@ -395,7 +395,7 @@ func rewriteUrl(article string) string {
 		data, err := base64.StdEncoding.DecodeString(base64str)
 		if err != nil {
 			fmt.Printf("%s\n", err)
-			link := fetchLink(base64str)
+			link := fetchLinkNewDecoder(base64str)
 			if link == "" {
 				return article
 			} else {
@@ -437,7 +437,7 @@ func rewriteUrl(article string) string {
 			data = data[1:]
 		}
 		if string(data[0:6]) == "AU_yqL" {
-			link := fetchLink(base64str)
+			link := fetchLinkNewDecoder(base64str)
 			if link == "" {
 				return article
 			} else {
