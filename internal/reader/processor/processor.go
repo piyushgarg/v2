@@ -558,7 +558,7 @@ func fetchLinkNewDecoder(id string) string {
 		}
 		return unquote
 	}
-	fmt.Println(string(body))
+	//fmt.Println(string(body))
 	return ""
 }
 
@@ -605,7 +605,7 @@ func fetchLink(id string) string {
 		}
 		return unquote
 	}
-	fmt.Println(string(body))
+	//fmt.Println(string(body))
 	return ""
 }
 
