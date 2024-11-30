@@ -342,7 +342,7 @@ func rewriteEntryURL(feed *model.Feed, entry *model.Entry) string {
 			}
 			rewrittenURL = re.ReplaceAllString(entry.URL, parts[2])*/
 			rewrittenURL = rewriteUrl(entry.URL)
-			fmt.Printf("\n%s\t==>\t%s\n", entry.URL, rewrittenURL)
+			fmt.Println(entry.URL, " ==> ", rewrittenURL)
 			// replace the previous entry url. only then the updated entry url will be updated.
 			entry.URL = rewrittenURL
 			slog.Debug("Rewriting entry URL",
@@ -391,7 +391,7 @@ func rewriteUrl(article string) string {
 	}
 
 	if base64str != "" {
-		//fmt.Printf("\nbase64 %s", base64str)
+		fmt.Println("base64 ", base64str)
 		data, err := base64.StdEncoding.DecodeString(base64str)
 		if err != nil {
 			fmt.Printf("%s\n", err)
@@ -464,14 +464,13 @@ func rewriteUrl(article string) string {
 }
 
 func fetchTimeStampAndSignature(id string) (string, string) {
-
 	ts := ""
 	sig := ""
+	fmt.Println("id-", id)
 	_url := "https://news.google.com/articles/" + id
 	method := "GET"
 	client := &http.Client{}
 	req, err := http.NewRequest(method, _url, nil)
-
 	if err != nil {
 		fmt.Println(err)
 		return ts, sig
@@ -483,6 +482,7 @@ func fetchTimeStampAndSignature(id string) (string, string) {
 		fmt.Println(err)
 		return ts, sig
 	}
+	fmt.Println("status =>", res.StatusCode)
 	defer res.Body.Close()
 
 	body, err := ioutil.ReadAll(res.Body)
@@ -502,7 +502,7 @@ func fetchTimeStampAndSignature(id string) (string, string) {
 	if len(match) > 0 {
 		sig = match[1]
 	}
-	//fmt.Println(sig)
+	fmt.Println("ts-", ts, " sig-", sig)
 	return ts, sig
 
 }
@@ -520,7 +520,7 @@ func fetchLinkNewDecoder(id string) string {
 	method := "POST"
 	s := "[[[\"Fbv4je\", \"[\\\"garturlreq\\\",[[\\\"X\\\",\\\"X\\\",[\\\"X\\\",\\\"X\\\"],null,null,1,1,\\\"US:en\\\",null,1,null,null,null,null,null,0,1],\\\"X\\\",\\\"X\\\",1,[1,1,1],1,1,null,0,0,null,0],\\\"" + id + "\\\"," + ts + ",\\\"" + sig + "\\\"]\"]]]"
 	escapeError := url.QueryEscape(s)
-	fmt.Printf("\nescaped url %s", escapeError)
+	//fmt.Printf("\nescaped url %s", escapeError)
 
 	payload := strings.NewReader("f.req=" + escapeError)
 
@@ -540,6 +540,8 @@ func fetchLinkNewDecoder(id string) string {
 		fmt.Println(err)
 		return ""
 	}
+	fmt.Println()
+	fmt.Println("status =>", res.StatusCode)
 	defer res.Body.Close()
 
 	body, err := ioutil.ReadAll(res.Body)
